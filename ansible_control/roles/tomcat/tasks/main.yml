@@ -1,0 +1,74 @@
+# https://github.com/rolehippie/temurin/blob/master/tasks/main.yml
+- name: Download repo key
+  ansible.builtin.shell:
+    cmd: curl -sSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor --output /usr/share/keyrings/adoptium-archive-keyring.gpg
+    creates: /usr/share/keyrings/adoptium-archive-keyring.gpg
+  tags:
+    - temurin
+
+- name: Add apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/adoptium-archive-keyring.gpg] https://packages.adoptium.net/artifactory/deb {{ ansible_distribution_release }} main"
+    filename: adoptium
+    update_cache: True
+    state: present
+  tags:
+    - temurin
+
+- name: Install java 
+  ansible.builtin.package:
+    name: temurin-11-jdk
+    state: present
+
+- name: Create /opt/app directory if it does not exist
+  ansible.builtin.file:
+    path: /opt/app
+    state: directory
+    mode: '0755'
+
+#- name: Download Tomcat
+#  ansible.builtin.get_url:
+#    url: https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.88/bin/apache-tomcat-9.0.88.tar.gz
+#    dest: /opt/app
+#    mode: '0440'
+
+
+- name: Unpack Tomcat into /opt/app
+  ansible.builtin.unarchive:
+    src: https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.88/bin/apache-tomcat-9.0.88.tar.gz
+    dest: /opt/app
+    remote_src: yes
+
+- name: Add the user 'tomcat'
+  ansible.builtin.user:
+    name: tomcat
+    comment: Tom the Cat
+
+- name: Recursively change ownership of a directory
+  ansible.builtin.file:
+    path: /opt/app
+    state: directory
+    recurse: yes
+    mode: g-rwx,o-rwx
+    owner: tomcat
+
+
+- name: Install systemd file
+  template:
+    src: ./templates/tomcat.service.j2
+    dest: "/etc/systemd/system/tomcat.service"
+    owner: tomcat
+
+
+- name: Start tomcat and reload config files
+  systemd:
+    state: started
+    daemon_reload: yes
+    name: tomcat
+    enabled: True
+
+
+#  apt-get install tomcat10
+#  sudo useradd -m -d /opt/tomcat -U -s /bin/false tomcat
+# apt install default-jdk
+

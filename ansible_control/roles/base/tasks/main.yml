@@ -1,0 +1,53 @@
+- name: Collect files
+  shell: find /var/log/ -type f -name \*.log -mtime +3
+  register: matched_files
+    
+- name: Remove files
+  file: 
+      path: "{{ item }}" 
+      state: absent
+  with_items: "{{ matched_files.stdout_lines }}"
+
+    
+- name: open port 80
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+
+- name: open port 443
+  ansible.posix.firewalld:
+    service: https
+    permanent: true
+    state: enabled
+
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Ensure group "ulyadmin" exists
+  ansible.builtin.group:
+    name: ulyadmin
+    state: present
+
+- name: Add the user 'ulyadmin'
+  ansible.builtin.user:
+    name: ulyadmin
+    comment: John Doe
+    group: ulyadmin
+    password: "{{ 'Budapest'|password_hash('sha512') }}"
+
+- name: check the physical memory
+  command: vmstat -s
+
+- name: Create /tmp/ckup directory if it does not exist
+  ansible.builtin.file:
+    path: /tmp/backup
+    state: directory
+    mode: '0755'
+
+- name: Save nginx logs
+  ansible.builtin.shell:
+    chdir: /var/log/nginx
+    cmd: tar -cvzf /tmp/backup/nginx_logs.tar.gz *
